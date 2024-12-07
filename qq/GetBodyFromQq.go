@@ -1,4 +1,4 @@
-package main
+package qq
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"github.com/emersion/go-imap/client"
 	"github.com/emersion/go-message/mail"
 	"github.com/joho/godotenv"
-	"golang.org/x/net/html"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/encoding/korean"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -17,31 +16,10 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"mime"
 	"net/http"
 	"os"
 	"strings"
 )
-
-// 邮件内容结构
-type EmailContent struct {
-	Subject string
-	From    string
-	To      string
-	Date    string
-	Text    string
-	HTML    string
-}
-
-// 解码邮件主题或发件人等信息
-func decodeMailString(s string) string {
-	dec := new(mime.WordDecoder)
-	decoded, err := dec.DecodeHeader(s)
-	if err != nil {
-		return s
-	}
-	return decoded
-}
 
 // 转换字符编码
 func convertToUTF8(content []byte, charset string) (string, error) {
@@ -244,16 +222,6 @@ func main() {
 	}
 }
 
-// 解码邮件头
-func decodeHeader(header string) string {
-	dec := new(mime.WordDecoder)
-	decoded, err := dec.DecodeHeader(header)
-	if err != nil {
-		return header
-	}
-	return decoded
-}
-
 // 检查是否是有效的 UTF-8
 func isUTF8(buf []byte) bool {
 	return strings.Contains(http.DetectContentType(buf), "charset=utf-8")
@@ -282,28 +250,54 @@ func tryDifferentEncodings(content []byte) string {
 	return string(content)
 }
 
-// extractTextFromHTML 从 HTML 内容中提取纯文本
-func extractTextFromHTML(htmlContent string) string {
-	// 解析 HTML
-	doc, err := html.Parse(strings.NewReader(htmlContent))
+func getUnreadEmailsForRecipient(c *client.Client, recipientEmail string) ([]*EmailContent, error) {
+	// 选择收件箱
+	_, err := c.Select("INBOX", false)
 	if err != nil {
-		fmt.Println("解析 HTML 失败:", err)
-		return ""
+		return nil, fmt.Errorf("选择收件箱失败: %v", err)
 	}
 
-	var buf bytes.Buffer
-	var extractText func(*html.Node)
+	// 搜索未读邮件
+	criteria := imap.NewSearchCriteria()
+	criteria.WithoutFlags = []string{imap.SeenFlag}
+	//criteria.To = []string{recipientEmail}
 
-	extractText = func(n *html.Node) {
-		if n.Type == html.TextNode {
-			buf.WriteString(strings.TrimSpace(n.Data) + " ")
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			extractText(c)
-		}
+	uids, err := c.Search(criteria)
+	if err != nil {
+		return nil, fmt.Errorf("搜索邮件失败: %v", err)
 	}
 
-	extractText(doc)
+	if len(uids) == 0 {
+		return nil, nil // 没有未读邮件
+	}
 
-	return strings.TrimSpace(buf.String())
+	seqSet := new(imap.SeqSet)
+	seqSet.AddNum(uids...)
+
+	// 获取邮件内容
+	section := &imap.BodySectionName{}
+	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
+
+	messages := make(chan *imap.Message, 10)
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Fetch(seqSet, items, messages)
+	}()
+
+	var emails []*EmailContent
+
+	for msg := range messages {
+		email, err := processEmail(msg, section)
+		if err != nil {
+			log.Printf("处理邮件失败: %v", err)
+			continue
+		}
+		emails = append(emails, email)
+	}
+
+	if err := <-done; err != nil {
+		return nil, fmt.Errorf("获取邮件失败: %v", err)
+	}
+
+	return emails, nil
 }
