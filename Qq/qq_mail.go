@@ -1,4 +1,4 @@
-package qq
+package Qq
 
 import (
 	"bytes"
@@ -36,7 +36,7 @@ func decodeMailString(s string) string {
 
 func InitCli() (*imap.MailboxStatus, *client.Client, error) {
 	// 连接到 QQ 邮箱的 IMAP 服务器
-	c, err := client.DialTLS("imap.qq.com:993", nil)
+	c, err := client.DialTLS("imap.Qq.com:993", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
