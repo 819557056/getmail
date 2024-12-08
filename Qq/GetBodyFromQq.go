@@ -213,7 +213,7 @@ func main() {
 		}
 		if email.HTML != "" {
 			fmt.Printf("\n=== HTML内容 ===\n%v\n", email.HTML)
-			fromHTML := extractTextFromHTML(email.HTML)
+			fromHTML := ExtractTextFromHTML(email.HTML)
 			fmt.Printf("\n=== 文本内容 ===\n%v\n", fromHTML)
 		}
 	}

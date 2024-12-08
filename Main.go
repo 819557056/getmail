@@ -14,9 +14,13 @@ func getQqMail() {
 	if err != nil {
 		panic(err)
 	}
+	defer cli.Logout()
 
 	// 读取邮件
-	recipient, err := Qq.GetUnreadEmailsForRecipient(cli, "test20241201@pki.win")
+	recipient, err := Qq.GetUnreadEmailsForRecipient(cli, "test20241201@pkica.win")
+	if err != nil {
+		panic(err)
+	}
 
 	for i := 0; i < len(recipient); i++ {
 		fmt.Printf("邮件正文:%s\n", recipient[i].Text)
@@ -86,4 +90,6 @@ func main() {
 
 	getQqMail()
 
+	//html := Qq.ExtractTextFromHTML("<div style=\"font-family: -apple-system, system-ui; font-size: 11pt; color: rgb(0, 0, 0);\"><span style=\"line-height: 1.6;\">456</span></div>")
+	//fmt.Println(html)
 }

@@ -40,7 +40,7 @@ func InitCli() (*imap.MailboxStatus, *client.Client, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer c.Logout()
+	//defer c.Logout()
 
 	qqMail := os.Getenv("QQ_MAIL")
 	qqPwd := os.Getenv("QQ_PWD")
@@ -50,13 +50,7 @@ func InitCli() (*imap.MailboxStatus, *client.Client, error) {
 		log.Fatal(err)
 	}
 
-	// 选择收件箱
-	mbox, err := c.Select("INBOX", false)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return mbox, c, err
+	return nil, c, err
 }
 
 func GetListMail(mbox *imap.MailboxStatus, cli *client.Client, count int) chan *imap.Message {
@@ -122,6 +116,16 @@ func GetUnreadEmailsForRecipient(c *client.Client, recipientEmail string) ([]*Em
 			continue
 		}
 		emails = append(emails, email)
+
+		// 将邮件标记为已读
+		seqSet := new(imap.SeqSet)
+		seqSet.AddNum(msg.Uid)
+		item := imap.FormatFlagsOp(imap.AddFlags, true)
+		flags := []interface{}{imap.SeenFlag}
+		err = c.UidStore(seqSet, item, flags, nil)
+		if err != nil {
+			log.Printf("将邮件标记为已读失败: %v", err)
+		}
 	}
 
 	if err := <-done; err != nil {
@@ -183,7 +187,7 @@ func processEmail(msg *imap.Message, section *imap.BodySectionName) (*EmailConte
 	}
 
 	if email.HTML != "" {
-		email.Text += extractTextFromHTML(email.HTML)
+		email.Text = ExtractTextFromHTML(email.HTML)
 	}
 
 	return email, nil
@@ -200,7 +204,7 @@ func decodeHeader(header string) string {
 }
 
 // extractTextFromHTML 从 HTML 内容中提取纯文本
-func extractTextFromHTML(htmlContent string) string {
+func ExtractTextFromHTML(htmlContent string) string {
 	// 解析 HTML
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
